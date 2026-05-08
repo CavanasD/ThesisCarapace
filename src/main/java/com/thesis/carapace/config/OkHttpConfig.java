@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class OkHttpConfig {
 
-    // 信任 CFMS 自签证书（仅用于内网连接，不对外）
+    // 信任 CFMS 自签证书
     @Bean
     public OkHttpClient okHttpClient() throws Exception {
         X509TrustManager trustAll = new X509TrustManager() {
