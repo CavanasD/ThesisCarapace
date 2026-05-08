@@ -35,3 +35,4 @@ out/
 
 ### VS Code ###
 .vscode/
+waf-logs/waf-events-2026-05-08.jsonl
