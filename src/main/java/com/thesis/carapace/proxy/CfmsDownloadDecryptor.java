@@ -92,7 +92,7 @@ public class CfmsDownloadDecryptor {
             case "file_chunk":
                 return onFileChunk(key, envelope);
             case "aes_key":
-                return onAesKey(clientSession, key, frameId, envelope, forward);
+                return onAesKey(key, frameId, envelope, forward);
             default:
                 return false;
         }
@@ -139,7 +139,6 @@ public class CfmsDownloadDecryptor {
     }
 
     private boolean onAesKey(
-            WebSocketSession clientSession,
             String key,
             int frameId,
             JsonNode envelope,
