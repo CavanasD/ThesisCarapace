@@ -2,13 +2,19 @@ package com.thesis.carapace.api;
 
 import com.thesis.carapace.defender.WafEngine;
 import com.thesis.carapace.defender.WafEvent;
+import com.thesis.carapace.defender.WafEventPersister;
 import com.thesis.carapace.defender.WafEventStore;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 
@@ -19,6 +25,7 @@ public class WafController {
 
     private final WafEngine wafEngine;
     private final WafEventStore eventStore;
+    private final WafEventPersister persister;
 
     @GetMapping(value = "/events/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamEvents() {
@@ -71,6 +78,44 @@ public class WafController {
         if (enable) wafEngine.enableRule(name);
         else        wafEngine.disableRule(name);
         return ResponseEntity.ok(Map.of("name", name, "enabled", enable));
+    }
+
+    @PostMapping("/backups")
+    public ResponseEntity<Map<String, String>> createBackup() {
+        try {
+            Path zip = persister.snapshotAll();
+            return ResponseEntity.ok(Map.of(
+                    "filename", zip.getFileName().toString(),
+                    "path",     zip.toAbsolutePath().toString()
+            ));
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "Backup failed: " + e.getMessage()
+            ));
+        }
+    }
+
+    @GetMapping("/backups")
+    public List<String> listBackups() {
+        return persister.listBackups();
+    }
+
+    @GetMapping("/backups/{name}")
+    public ResponseEntity<Resource> downloadBackup(@PathVariable String name) {
+        Path file = persister.resolveBackup(name);
+        if (file == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + file.getFileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(new FileSystemResource(file));
+    }
+
+    @GetMapping("/logs")
+    public List<String> listLogFiles() {
+        return persister.listLogFiles();
     }
 
     private String csvRow(WafEvent ev) {

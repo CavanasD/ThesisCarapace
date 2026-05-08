@@ -1,6 +1,7 @@
 package com.thesis.carapace.defender;
 
 import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -17,12 +18,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class WafEventStore {
 
     private static final int MAX_EVENTS = 500;
 
     @Value("${security.jwt.secret}")
     private String jwtSecret;
+
+    private final WafEventPersister persister;
 
     private final Deque<WafEvent> events = new ConcurrentLinkedDeque<>();
     private final List<SseEmitter> emitters = new CopyOnWriteArrayList<>();
@@ -42,6 +46,24 @@ public class WafEventStore {
                     .digest(jwtSecret.getBytes());
             idMask = ((hash[0] & 0xFFL) << 16) | ((hash[1] & 0xFFL) << 8) | (hash[2] & 0xFFL);
         } catch (Exception ignored) {}
+
+        // Replay today's persisted events into the ring buffer so dashboard
+        // history survives restarts. Counters reflect ALL of today's events;
+        // older days remain on disk but are not loaded.
+        List<WafEvent> persisted = persister.loadRecent(MAX_EVENTS);
+        long maxId = 0;
+        long blocked = 0;
+        for (WafEvent ev : persisted) {
+            events.addLast(ev);
+            if (ev.id() > maxId) maxId = ev.id();
+            if (ev.blocked()) blocked++;
+        }
+        idCounter.set(maxId);
+        totalRequests.set(persisted.size());
+        blockedRequests.set(blocked);
+        if (!persisted.isEmpty()) {
+            log.info("[WAF-PERSIST] Replayed {} event(s) from today's log", persisted.size());
+        }
     }
 
     public WafEvent record(String clientIp, String action,
@@ -58,6 +80,9 @@ public class WafEventStore {
 
         if (events.size() >= MAX_EVENTS) events.pollFirst();
         events.addLast(event);
+
+        // Persist asynchronously — never blocks the request path.
+        persister.persist(event);
 
         emitters.removeIf(emitter -> {
             try {
