@@ -1,7 +1,7 @@
 package com.thesis.carapace.vuln;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,10 +26,10 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class SsrfController {
 
-    @Value("${vuln.ssrf.enabled:false}")
-    private boolean ssrfEnabled;
+    private final VulnSwitchRegistry vulnSwitches;
 
     private static final List<String> ALLOWED_PREFIXES = List.of(
             "https://", "http://cdn.", "http://img."
@@ -37,6 +37,7 @@ public class SsrfController {
 
     @GetMapping("/preview")
     public ResponseEntity<String> preview(@RequestParam String url) {
+        boolean ssrfEnabled = vulnSwitches.isEnabled(VulnSwitchRegistry.SSRF);
         log.info("[SSRF] preview request: url={} vuln={}", url, ssrfEnabled);
 
         if (!ssrfEnabled) {

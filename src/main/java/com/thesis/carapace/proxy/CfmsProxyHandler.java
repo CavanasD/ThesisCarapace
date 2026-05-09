@@ -30,7 +30,6 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     private final OkHttpClient okHttpClient;
     private final WafEngine wafEngine;
     private final WafEventStore eventStore;
-    private final CfmsDownloadDecryptor downloadDecryptor;
 
     // clientSession.getId() → 连接 CFMS 的 OkHttp WebSocket
     // 用 CompletableFuture 避免 onOpen 回调前收到消息的竞态问题
@@ -55,19 +54,10 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
                 log.info("[PROXY] CFMS link up for client {}", clientSession.getId());
             }
 
-            // CFMS → 客户端：交给解密器先处理（GCM 解密、抑制 aes_key），
-            // 透明传输 / 非下载帧走原路转发。
+            // CFMS → 客户端：直接透传。E2E 加密由客户端 JS 完成（AES-GCM）。
             @Override
             public void onMessage(WebSocket ws, ByteString bytes) {
-                byte[] frame = bytes.toByteArray();
-                boolean handled = downloadDecryptor.handleFromCfms(
-                        clientSession,
-                        frame,
-                        msg -> sendToClient(clientSession, msg)
-                );
-                if (!handled) {
-                    sendToClient(clientSession, new BinaryMessage(frame));
-                }
+                sendToClient(clientSession, new BinaryMessage(bytes.toByteArray()));
             }
 
             @Override
@@ -128,7 +118,6 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession clientSession, CloseStatus status) {
         eventStore.decrementConnections();
-        downloadDecryptor.onClientDisconnect(clientSession);
         CompletableFuture<WebSocket> future = cfmsSockets.remove(clientSession.getId());
         if (future != null) {
             future.thenAccept(ws -> ws.close(1000, "Client disconnected"))

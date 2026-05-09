@@ -24,8 +24,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    // Jackson — used directly by CfmsDownloadDecryptor for parsing CFMS JSON
-    // envelopes and by WafEventPersister for JSONL serialization. Spring Boot
+    // Jackson — used by WafEventPersister for JSONL serialization. Spring Boot
     // 4.x's starter-web does not expose these on the compile classpath, so
     // declare them explicitly.
     implementation 'com.fasterxml.jackson.core:jackson-databind'
