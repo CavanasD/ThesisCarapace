@@ -1,7 +1,6 @@
 package com.thesis.carapace.vuln;
 
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -26,15 +25,19 @@ import jakarta.servlet.http.HttpServletResponse;
  */
 @Slf4j
 @Configuration
-@ConditionalOnProperty(name = "vuln.cors.enabled", havingValue = "true")
 public class CorsVulnConfig {
 
     @Bean
-    public OncePerRequestFilter corsVulnFilter() {
+    public OncePerRequestFilter corsVulnFilter(VulnSwitchRegistry vulnSwitches) {
         return new OncePerRequestFilter() {
             @Override
             protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
                     throws java.io.IOException, jakarta.servlet.ServletException {
+                if (!vulnSwitches.isEnabled(VulnSwitchRegistry.CORS)) {
+                    // 关闭时回退到 Spring Security 原生 CORS 处理（CorsConfig 提供的白名单）
+                    chain.doFilter(req, res);
+                    return;
+                }
                 String origin = req.getHeader("Origin");
                 if (origin != null) {
                     // 漏洞：直接把 Origin 反射回去，并允许 credentials

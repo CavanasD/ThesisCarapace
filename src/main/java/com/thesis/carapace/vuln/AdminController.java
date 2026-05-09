@@ -1,5 +1,6 @@
 package com.thesis.carapace.vuln;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -25,10 +26,10 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/admin")
+@RequiredArgsConstructor
 public class AdminController {
 
-    @Value("${vuln.jwt.alg-none.enabled:false}")
-    private boolean jwtAlgNoneEnabled;
+    private final VulnSwitchRegistry vulnSwitches;
 
     @Value("${security.jwt.secret}")
     private String jwtSecret;
@@ -39,7 +40,7 @@ public class AdminController {
             return ResponseEntity.status(401).body("Missing token");
         }
         String token = authHeader.substring(7);
-        log.info("[JWT] Token received, alg-none-enabled={}", jwtAlgNoneEnabled);
+        log.info("[JWT] Token received, alg-none-enabled={}", vulnSwitches.isEnabled(VulnSwitchRegistry.JWT_ALG_NONE));
 
         if (!validateJwt(token)) {
             return ResponseEntity.status(401).body("Invalid token");
@@ -60,7 +61,8 @@ public class AdminController {
             String headerJson = new String(Base64.getUrlDecoder().decode(pad(parts[0])));
 
             // 漏洞：接受 alg:none，直接信任 payload 不验签名
-            if (jwtAlgNoneEnabled && headerJson.toLowerCase().contains("\"none\"")) {
+            if (vulnSwitches.isEnabled(VulnSwitchRegistry.JWT_ALG_NONE)
+                    && headerJson.toLowerCase().contains("\"none\"")) {
                 log.warn("[JWT VULN] Accepted alg:none token!");
                 return true;
             }
