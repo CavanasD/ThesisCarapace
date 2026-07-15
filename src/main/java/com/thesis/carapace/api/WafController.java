@@ -54,7 +54,13 @@ public class WafController {
         return Map.of(
                 "total",       eventStore.getTotal(),
                 "blocked",     eventStore.getBlocked(),
-                "connections", eventStore.getActiveConnections()
+                "connections", eventStore.getActiveConnections(),
+                "dataFramesBypassed", eventStore.getBypassedDataFrames(),
+                "persistenceQueueDepth", persister.getQueueDepth(),
+                "persistenceQueueCapacity", persister.getQueueCapacity(),
+                "persistenceDropped", persister.getDroppedEvents(),
+                "persistencePersisted", persister.getPersistedEvents(),
+                "persistenceWriteFailures", persister.getWriteFailures()
         );
     }
 

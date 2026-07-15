@@ -14,6 +14,7 @@ import org.springframework.web.socket.handler.AbstractWebSocketHandler;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,6 +31,7 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     private final OkHttpClient okHttpClient;
     private final WafEngine wafEngine;
     private final WafEventStore eventStore;
+    private final CfmsFrameTracker frameTracker;
 
     // clientSession.getId() → 连接 CFMS 的 OkHttp WebSocket
     // 用 CompletableFuture 避免 onOpen 回调前收到消息的竞态问题
@@ -40,6 +42,7 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession clientSession) {
         eventStore.incrementConnections();
+        frameTracker.open(clientSession.getId());
         log.info("[PROXY] Client connected: {} from {}", clientSession.getId(), getIp(clientSession));
 
         CompletableFuture<WebSocket> future = new CompletableFuture<>();
@@ -57,7 +60,9 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
             // CFMS → 客户端：直接透传。E2E 加密由客户端 JS 完成（AES-GCM）。
             @Override
             public void onMessage(WebSocket ws, ByteString bytes) {
-                sendToClient(clientSession, new BinaryMessage(bytes.toByteArray()));
+                byte[] payload = bytes.toByteArray();
+                frameTracker.onUpstreamFrame(clientSession.getId(), payload);
+                sendToClient(clientSession, new BinaryMessage(payload));
             }
 
             @Override
@@ -88,18 +93,25 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
 
     @Override
     protected void handleBinaryMessage(WebSocketSession clientSession, BinaryMessage message) {
-        byte[] payload = message.getPayload().array();
-        String ip = getIp(clientSession);
-        String action = extractAction(payload);
+        ByteBuffer buffer = message.getPayload();
+        byte[] payload = new byte[buffer.remaining()];
+        buffer.get(payload);
 
-        WafCheckResult result = wafEngine.inspect(payload);
-        var event = eventStore.record(ip, action, result.blocked(), result.ruleName(), result.reason());
+        if (frameTracker.shouldInspect(clientSession.getId(), payload)) {
+            String ip = getIp(clientSession);
+            String action = extractAction(payload);
+            WafCheckResult result = wafEngine.inspect(payload);
+            var event = eventStore.record(ip, action, result.blocked(), result.ruleName(), result.reason());
 
-        if (result.blocked()) {
-            log.warn("[WAF BLOCK] ip={} action={} rule='{}' reason='{}'",
-                    ip, action, result.ruleName(), result.reason());
-            sendWafBlock(clientSession, payload, event);
-            return;
+            if (result.blocked()) {
+                log.warn("[WAF BLOCK] ip={} action={} rule='{}' reason='{}'",
+                        ip, action, result.ruleName(), result.reason());
+                frameTracker.finish(clientSession.getId(), payload);
+                sendWafBlock(clientSession, payload, event);
+                return;
+            }
+        } else {
+            eventStore.incrementBypassedDataFrames();
         }
 
         CompletableFuture<WebSocket> future = cfmsSockets.get(clientSession.getId());
@@ -118,6 +130,7 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession clientSession, CloseStatus status) {
         eventStore.decrementConnections();
+        frameTracker.close(clientSession.getId());
         CompletableFuture<WebSocket> future = cfmsSockets.remove(clientSession.getId());
         if (future != null) {
             future.thenAccept(ws -> ws.close(1000, "Client disconnected"))

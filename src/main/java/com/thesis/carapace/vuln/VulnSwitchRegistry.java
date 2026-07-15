@@ -28,6 +28,8 @@ public class VulnSwitchRegistry {
 
     private final Map<String, Boolean> state = new ConcurrentHashMap<>();
 
+    @Value("${lab.mode:false}")
+    private boolean labMode;
     @Value("${vuln.ssrf.enabled:false}")
     private boolean initSsrf;
     @Value("${vuln.jwt.alg-none.enabled:false}")
@@ -39,11 +41,14 @@ public class VulnSwitchRegistry {
 
     @PostConstruct
     void init() {
-        state.put(SSRF, initSsrf);
-        state.put(JWT_ALG_NONE, initJwtAlgNone);
-        state.put(CORS, initCors);
-        state.put(LOG4SHELL, initLog4shell);
-        log.info("VulnSwitchRegistry initialized: {}", state);
+        state.put(SSRF, labMode && initSsrf);
+        state.put(JWT_ALG_NONE, labMode && initJwtAlgNone);
+        state.put(CORS, labMode && initCors);
+        state.put(LOG4SHELL, labMode && initLog4shell);
+        if (!labMode && (initSsrf || initJwtAlgNone || initCors || initLog4shell)) {
+            log.warn("Vulnerability flags were requested but ignored because LAB_MODE is disabled");
+        }
+        log.info("VulnSwitchRegistry initialized: labMode={}, switches={}", labMode, state);
     }
 
     public boolean isEnabled(String name) {
@@ -53,9 +58,21 @@ public class VulnSwitchRegistry {
     /** @return true if name is recognized and was updated; false if unknown. */
     public boolean setEnabled(String name, boolean enabled) {
         if (!state.containsKey(name)) return false;
+        if (enabled && !labMode) {
+            log.warn("Rejected attempt to enable {} while LAB_MODE is disabled", name);
+            return false;
+        }
         state.put(name, enabled);
         log.warn("[VULN SWITCH] {} -> {}", name, enabled);
         return true;
+    }
+
+    public boolean contains(String name) {
+        return state.containsKey(name);
+    }
+
+    public boolean isLabMode() {
+        return labMode;
     }
 
     /** Snapshot of all switches in deterministic order, for the admin panel. */

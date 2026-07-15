@@ -5,7 +5,6 @@ import com.thesis.carapace.defender.WafRule;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 // 拦截上传危险文件类型（通过文件名或 magic bytes 检测）
@@ -32,21 +31,18 @@ public class FileTypeRule implements WafRule {
     public WafCheckResult inspect(byte[] payload) {
         if (payload.length <= 5) return WafCheckResult.allowed();
 
-        try {
-            String json = new String(payload, 5, payload.length - 5, StandardCharsets.UTF_8);
-            if (!json.startsWith("{")) {
-                // 是二进制文件块，从帧体起点（offset 5）检查 magic bytes
-                return checkMagicBytes(payload, 5);
-            }
-            // 是 JSON 帧，检查文件名（title 字段）
-            String lower = json.toLowerCase();
-            for (String ext : DANGEROUS_EXTENSIONS) {
-                if (lower.contains("\"title\"") && lower.contains(ext)) {
-                    return WafCheckResult.blocked(name(), "Dangerous file extension: " + ext);
-                }
-            }
-        } catch (Exception ignored) {
+        String json = WafPayloads.jsonBody(payload);
+        if (json == null) {
+            // 是二进制文件块，从帧体起点（offset 5）检查 magic bytes
             return checkMagicBytes(payload, 5);
+        }
+
+        // 是 JSON 帧，检查文件名（title 字段）
+        String lower = json.toLowerCase();
+        for (String ext : DANGEROUS_EXTENSIONS) {
+            if (lower.contains("\"title\"") && lower.contains(ext)) {
+                return WafCheckResult.blocked(name(), "Dangerous file extension: " + ext);
+            }
         }
         return WafCheckResult.allowed();
     }

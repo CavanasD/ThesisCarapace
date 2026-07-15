@@ -12,8 +12,8 @@ import java.util.Map;
  *   GET /api/admin/vuln          → 列出所有漏洞当前状态
  *   PUT /api/admin/vuln/{name}   → body {"enabled": true|false} 切换
  *
- * 当前不做认证 — 演示项目，权限由前端 admin 路由控制。
- * 真要加认证，沿用 SecurityConfig 现有的过滤链即可。
+ * 端点由 SecurityConfig 的无会话管理令牌保护；LAB_MODE=false 时，
+ * 即使管理员也不能打开漏洞。
  */
 @RestController
 @RequestMapping("/api/admin/vuln")
@@ -32,8 +32,20 @@ public class VulnController {
             @PathVariable String name,
             @RequestBody Map<String, Boolean> body) {
         boolean enable = Boolean.TRUE.equals(body.get("enabled"));
+        if (!registry.contains(name)) return ResponseEntity.notFound().build();
+        if (enable && !registry.isLabMode()) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "name", name,
+                    "enabled", false,
+                    "error", "LAB_MODE is disabled"
+            ));
+        }
         boolean ok = registry.setEnabled(name, enable);
-        if (!ok) return ResponseEntity.notFound().build();
+        if (!ok) return ResponseEntity.status(409).body(Map.of(
+                "name", name,
+                "enabled", registry.isEnabled(name),
+                "error", "Switch update rejected"
+        ));
         return ResponseEntity.ok(Map.of("name", name, "enabled", enable));
     }
 }

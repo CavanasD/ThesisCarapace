@@ -35,6 +35,7 @@ public class WafEventStore {
     private final AtomicLong totalRequests   = new AtomicLong();
     private final AtomicLong blockedRequests = new AtomicLong();
     private final AtomicLong activeConnections = new AtomicLong();
+    private final AtomicLong bypassedDataFrames = new AtomicLong();
 
     // 24-bit XOR mask derived from JWT secret — obfuscates log IDs
     private long idMask = 0xABCDEFL;
@@ -139,4 +140,6 @@ public class WafEventStore {
     public void incrementConnections() { activeConnections.incrementAndGet(); }
     public void decrementConnections() { activeConnections.decrementAndGet(); }
     public long getActiveConnections()  { return activeConnections.get(); }
+    public void incrementBypassedDataFrames() { bypassedDataFrames.incrementAndGet(); }
+    public long getBypassedDataFrames() { return bypassedDataFrames.get(); }
 }
