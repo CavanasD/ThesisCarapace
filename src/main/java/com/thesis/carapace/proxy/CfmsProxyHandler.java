@@ -57,7 +57,8 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
                 log.info("[PROXY] CFMS link up for client {}", clientSession.getId());
             }
 
-            // CFMS → 客户端：直接透传。E2E 加密由客户端 JS 完成（AES-GCM）。
+            // CFMS → 客户端：直接透传。旧链路的 AES-GCM 密钥和密文经同一 WSS
+            // 通道发送，因此属于传输保护，不是端到端加密。
             @Override
             public void onMessage(WebSocket ws, ByteString bytes) {
                 byte[] payload = bytes.toByteArray();
