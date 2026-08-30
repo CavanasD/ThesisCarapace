@@ -28,6 +28,20 @@ class SqlInjectionRuleTest {
         assertFalse(result.blocked());
     }
 
+    @Test
+    void allowsBase64UrlCredentialContainingAdjacentHyphens() {
+        WafCheckResult result = rule.inspect(frame("{\"action\":\"server_info\",\"token\":\"header.payload.signature--suffix\",\"data\":{}}"));
+
+        assertFalse(result.blocked());
+    }
+
+    @Test
+    void stillInspectsBusinessFieldsNamedToken() {
+        WafCheckResult result = rule.inspect(frame("{\"action\":\"search\",\"token\":\"credential\",\"data\":{\"token\":\"' or 1=1 --\"}}"));
+
+        assertTrue(result.blocked());
+    }
+
     private byte[] frame(String body) {
         byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
         byte[] payload = new byte[5 + bodyBytes.length];

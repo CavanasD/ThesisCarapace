@@ -1,6 +1,7 @@
 package com.thesis.carapace.defender.rules;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -32,8 +33,10 @@ final class WafPayloads {
         if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) return null;
 
         try {
-            JSON.readTree(trimmed);
-            return trimmed;
+            ObjectNode request = (ObjectNode) JSON.readTree(trimmed);
+            // The top-level credential is verified by Core, not interpreted as business input.
+            request.remove("token");
+            return request.toString();
         } catch (Exception e) {
             return null;
         }
