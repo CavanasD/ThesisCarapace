@@ -54,7 +54,13 @@ public class WafController {
         return Map.of(
                 "total",       eventStore.getTotal(),
                 "blocked",     eventStore.getBlocked(),
-                "connections", eventStore.getActiveConnections()
+                "connections", eventStore.getActiveConnections(),
+                "dataFramesBypassed", eventStore.getBypassedDataFrames(),
+                "persistenceQueueDepth", persister.getQueueDepth(),
+                "persistenceQueueCapacity", persister.getQueueCapacity(),
+                "persistenceDropped", persister.getDroppedEvents(),
+                "persistencePersisted", persister.getPersistedEvents(),
+                "persistenceWriteFailures", persister.getWriteFailures()
         );
     }
 
@@ -78,6 +84,13 @@ public class WafController {
         if (enable) wafEngine.enableRule(name);
         else        wafEngine.disableRule(name);
         return ResponseEntity.ok(Map.of("name", name, "enabled", enable));
+    }
+
+    @PutMapping("/rules")
+    public List<Map<String, Object>> toggleAllRules(@RequestBody Map<String, Boolean> body) {
+        boolean enable = Boolean.TRUE.equals(body.get("enabled"));
+        wafEngine.setAllRulesEnabled(enable);
+        return rules();
     }
 
     @PostMapping("/backups")

@@ -35,6 +35,7 @@ public class WafEventStore {
     private final AtomicLong totalRequests   = new AtomicLong();
     private final AtomicLong blockedRequests = new AtomicLong();
     private final AtomicLong activeConnections = new AtomicLong();
+    private final AtomicLong bypassedDataFrames = new AtomicLong();
 
     // 24-bit XOR mask derived from JWT secret — obfuscates log IDs
     private long idMask = 0xABCDEFL;
@@ -68,12 +69,18 @@ public class WafEventStore {
 
     public WafEvent record(String clientIp, String action,
                            boolean blocked, String ruleName, String reason) {
+        return record(clientIp, action, blocked, ruleName, reason, null);
+    }
+
+    public WafEvent record(String clientIp, String action,
+                           boolean blocked, String ruleName, String reason,
+                           String requestPreview) {
         long rawId = idCounter.incrementAndGet();
         String encId = "WAF-" + String.format("%06X", (rawId ^ idMask) & 0xFFFFFFL);
         String defenseType = deriveDefenseType(blocked, ruleName, reason);
 
         WafEvent event = new WafEvent(rawId, encId, defenseType,
-                Instant.now(), clientIp, action, blocked, ruleName, reason);
+                Instant.now(), clientIp, action, blocked, ruleName, reason, requestPreview);
 
         totalRequests.incrementAndGet();
         if (blocked) blockedRequests.incrementAndGet();
@@ -103,6 +110,7 @@ public class WafEventStore {
             case "Path Traversal Detection"    -> "HEUR/WAF.FS.PathTraversal";
             case "Command Injection Detection" -> "HEUR/WAF.Exec.CmdInject";
             case "File Type Detection"         -> deriveFileType(reason);
+            case "Honeypot Trigger"            -> "DECOY/HONEYPOT.EndpointAccess";
             default -> "HEUR/WAF.Generic." + ruleName.replaceAll("[^A-Za-z0-9]", "");
         };
     }
@@ -139,4 +147,6 @@ public class WafEventStore {
     public void incrementConnections() { activeConnections.incrementAndGet(); }
     public void decrementConnections() { activeConnections.decrementAndGet(); }
     public long getActiveConnections()  { return activeConnections.get(); }
+    public void incrementBypassedDataFrames() { bypassedDataFrames.incrementAndGet(); }
+    public long getBypassedDataFrames() { return bypassedDataFrames.get(); }
 }

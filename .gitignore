@@ -36,3 +36,12 @@ out/
 ### VS Code ###
 .vscode/
 waf-logs/waf-events-2026-05-08.jsonl
+waf-logs/waf-events-2026-05-09.jsonl
+
+# ── 本地实验备份（带时间戳的临时副本，勿入库）─────────────
+*.bak
+*.bak.*
+*.bak_*
+*.bak2_*
+*.bak3_*
+_extension.py.bak*

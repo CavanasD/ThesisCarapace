@@ -5,7 +5,6 @@ import com.thesis.carapace.defender.WafRule;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 @Component
@@ -17,7 +16,14 @@ public class SqlInjectionRule implements WafRule {
             "union select", "union all select",
             "drop table", "drop database",
             "insert into", "delete from",
-            "'; --", "' --", "--", "/*", "*/"
+            "'; --", "' --", "--", "/*", "*/",
+            // ORDER BY / 标识符位置注入的带外读取。标识符位无法参数化绑定，
+            // 攻击者常借报错函数把子查询结果带进错误串：
+            //   sort_by=extractvalue(1,concat(0x7e,(SELECT flag FROM lab_flags)))
+            // 上面的特征子串规则对这类 payload 完全无感（不含 ' or / union select
+            // / 注释符），必须新增报错注入函数与元数据表的模式才能覆盖。
+            "extractvalue", "updatexml", "exp(", "geometrycollection(",
+            "information_schema"
     );
 
     @Override
@@ -27,18 +33,8 @@ public class SqlInjectionRule implements WafRule {
 
     @Override
     public WafCheckResult inspect(byte[] payload) {
-        // CFMS 帧格式：前 5 字节是帧头（4字节 frame_id + 1字节 frame_type）
-        if (payload.length <= 5) return WafCheckResult.allowed();
-
-        String body;
-        try {
-            body = new String(payload, 5, payload.length - 5, StandardCharsets.UTF_8);
-        } catch (Exception e) {
-            return WafCheckResult.allowed(); // 二进制数据，跳过
-        }
-
-        // 只检查 JSON 帧，二进制文件块以 { 开头的概率极低
-        if (!body.startsWith("{")) return WafCheckResult.allowed();
+        String body = WafPayloads.jsonBody(payload);
+        if (body == null) return WafCheckResult.allowed();
 
         String lower = body.toLowerCase();
         for (String pattern : PATTERNS) {

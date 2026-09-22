@@ -11,5 +11,6 @@ public record WafEvent(
         String action,
         boolean blocked,
         String ruleName,
-        String reason
+        String reason,
+        String requestPreview
 ) {}

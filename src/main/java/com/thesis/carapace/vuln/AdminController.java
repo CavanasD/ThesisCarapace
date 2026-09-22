@@ -35,7 +35,7 @@ public class AdminController {
     private String jwtSecret;
 
     @GetMapping("/config")
-    public ResponseEntity<?> getConfig(@RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<?> getConfig(@RequestHeader(value = "Authorization", required = false) String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             return ResponseEntity.status(401).body("Missing token");
         }

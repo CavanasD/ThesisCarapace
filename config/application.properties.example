@@ -1,0 +1,8 @@
+# Local IDEA defaults. Copy this file to application.properties.
+# Spring Boot loads ./config/application.properties automatically when the
+# working directory is the carapace module. Never deploy this local profile.
+cfms.internal.url=wss://localhost:5104
+cfms.tls.ca-cert=../cfms_on_websocket-master/src/content/ssl/cert.pem
+security.admin.token=local-dev-admin-token
+cors.allowed-origins=http://localhost:5173,http://127.0.0.1:5173
+lab.mode=false
