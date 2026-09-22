@@ -86,6 +86,13 @@ public class WafController {
         return ResponseEntity.ok(Map.of("name", name, "enabled", enable));
     }
 
+    @PutMapping("/rules")
+    public List<Map<String, Object>> toggleAllRules(@RequestBody Map<String, Boolean> body) {
+        boolean enable = Boolean.TRUE.equals(body.get("enabled"));
+        wafEngine.setAllRulesEnabled(enable);
+        return rules();
+    }
+
     @PostMapping("/backups")
     public ResponseEntity<Map<String, String>> createBackup() {
         try {

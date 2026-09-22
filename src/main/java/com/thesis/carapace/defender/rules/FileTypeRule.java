@@ -2,14 +2,12 @@ package com.thesis.carapace.defender.rules;
 
 import com.thesis.carapace.defender.WafCheckResult;
 import com.thesis.carapace.defender.WafRule;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 // 拦截上传危险文件类型（通过文件名或 magic bytes 检测）
 @Component
-@ConditionalOnProperty(name = "defender.rule.file-type.enabled", havingValue = "true", matchIfMissing = true)
 public class FileTypeRule implements WafRule {
 
     private static final List<String> DANGEROUS_EXTENSIONS = List.of(

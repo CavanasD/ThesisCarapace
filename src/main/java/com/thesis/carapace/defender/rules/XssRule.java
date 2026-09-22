@@ -2,13 +2,11 @@ package com.thesis.carapace.defender.rules;
 
 import com.thesis.carapace.defender.WafCheckResult;
 import com.thesis.carapace.defender.WafRule;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 @Component
-@ConditionalOnProperty(name = "defender.rule.xss.enabled", havingValue = "true", matchIfMissing = true)
 public class XssRule implements WafRule {
 
     private static final List<String> PATTERNS = List.of(

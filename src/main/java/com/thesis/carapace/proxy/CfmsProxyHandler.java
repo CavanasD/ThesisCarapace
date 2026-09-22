@@ -1,5 +1,8 @@
 package com.thesis.carapace.proxy;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.thesis.carapace.defender.WafCheckResult;
 import com.thesis.carapace.defender.WafEngine;
 import com.thesis.carapace.defender.WafEventStore;
@@ -19,11 +22,18 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.Set;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class CfmsProxyHandler extends AbstractWebSocketHandler {
+
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Set<String> SENSITIVE_FIELDS = Set.of(
+            "token", "password", "passwd", "secret", "recovery_code", "totp", "otp"
+    );
+    private static final int MAX_PREVIEW_CHARS = 4096;
 
     @Value("${cfms.internal.url}")
     private String cfmsUrl;
@@ -102,7 +112,8 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
             String ip = getIp(clientSession);
             String action = extractAction(payload);
             WafCheckResult result = wafEngine.inspect(payload);
-            var event = eventStore.record(ip, action, result.blocked(), result.ruleName(), result.reason());
+            var event = eventStore.record(ip, action, result.blocked(), result.ruleName(), result.reason(),
+                    buildRequestPreview(payload));
 
             if (result.blocked()) {
                 log.warn("[WAF BLOCK] ip={} action={} rule='{}' reason='{}'",
@@ -141,6 +152,39 @@ public class CfmsProxyHandler extends AbstractWebSocketHandler {
     }
 
     // 工具方法
+
+    private String buildRequestPreview(byte[] payload) {
+        ObjectNode preview = JSON.createObjectNode();
+        preview.put("requestId", payload.length >= 4 ? ByteBuffer.wrap(payload, 0, 4).getInt() : -1);
+        preview.put("frameType", payload.length >= 5 ? Byte.toUnsignedInt(payload[4]) : -1);
+        preview.put("frameBytes", payload.length);
+        if (payload.length > 5) {
+            try {
+                JsonNode body = JSON.readTree(new String(payload, 5, payload.length - 5, StandardCharsets.UTF_8));
+                redact(body);
+                preview.set("body", body);
+            } catch (Exception ignored) {
+                preview.put("body", "[binary payload omitted]");
+            }
+        }
+        String value = preview.toPrettyString();
+        return value.length() <= MAX_PREVIEW_CHARS
+                ? value
+                : value.substring(0, MAX_PREVIEW_CHARS) + "\n…[truncated]";
+    }
+
+    private void redact(JsonNode node) {
+        if (node == null) return;
+        if (node.isObject()) {
+            ObjectNode object = (ObjectNode) node;
+            object.fieldNames().forEachRemaining(name -> {
+                if (SENSITIVE_FIELDS.contains(name.toLowerCase())) object.put(name, "***REDACTED***");
+                else redact(object.get(name));
+            });
+        } else if (node.isArray()) {
+            node.forEach(this::redact);
+        }
+    }
 
     private void sendToClient(WebSocketSession session, WebSocketMessage<?> msg) {
         try {

@@ -16,7 +16,14 @@ public class SqlInjectionRule implements WafRule {
             "union select", "union all select",
             "drop table", "drop database",
             "insert into", "delete from",
-            "'; --", "' --", "--", "/*", "*/"
+            "'; --", "' --", "--", "/*", "*/",
+            // ORDER BY / 标识符位置注入的带外读取。标识符位无法参数化绑定，
+            // 攻击者常借报错函数把子查询结果带进错误串：
+            //   sort_by=extractvalue(1,concat(0x7e,(SELECT flag FROM lab_flags)))
+            // 上面的特征子串规则对这类 payload 完全无感（不含 ' or / union select
+            // / 注释符），必须新增报错注入函数与元数据表的模式才能覆盖。
+            "extractvalue", "updatexml", "exp(", "geometrycollection(",
+            "information_schema"
     );
 
     @Override

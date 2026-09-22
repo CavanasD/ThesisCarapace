@@ -44,6 +44,43 @@ class CarapaceApplicationTests {
     }
 
     @Test
+    void allWafRulesCanBeToggledInOneRequest() throws Exception {
+        HttpResponse<String> disabled = send(HttpRequest.newBuilder(uri("/api/waf/rules"))
+                .header("X-Admin-Token", "test-admin-token")
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{\"enabled\":false}"))
+                .build());
+        assertEquals(200, disabled.statusCode());
+        assertFalse(disabled.body().contains("\"enabled\":true"));
+
+        HttpResponse<String> enabled = send(HttpRequest.newBuilder(uri("/api/waf/rules"))
+                .header("X-Admin-Token", "test-admin-token")
+                .header("Content-Type", "application/json")
+                .PUT(HttpRequest.BodyPublishers.ofString("{\"enabled\":true}"))
+                .build());
+        assertEquals(200, enabled.statusCode());
+        assertTrue(enabled.body().contains("\"enabled\":true"));
+    }
+
+    @Test
+    void honeypotIsInertAndDetectionIsAdminOnly() throws Exception {
+        HttpResponse<String> trigger = send(HttpRequest.newBuilder(uri("/decoy/admin/login"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"username\":\"admin\",\"password\":\"demo\"}"))
+                .build());
+        assertEquals(404, trigger.statusCode());
+        assertFalse(trigger.body().contains("demo"));
+
+        assertEquals(401, send(HttpRequest.newBuilder(uri("/api/honeypot/events")).GET().build()).statusCode());
+        HttpResponse<String> events = send(HttpRequest.newBuilder(uri("/api/honeypot/events"))
+                .header("X-Admin-Token", "test-admin-token")
+                .GET().build());
+        assertEquals(200, events.statusCode());
+        assertTrue(events.body().contains("Honeypot Trigger"));
+        assertFalse(events.body().contains("demo"));
+    }
+
+    @Test
     void labSwitchCannotBeEnabledOutsideLabMode() throws Exception {
         HttpResponse<String> response = send(HttpRequest.newBuilder(uri("/api/admin/vuln/ssrf"))
                 .header("X-Admin-Token", "test-admin-token")

@@ -52,6 +52,6 @@ class WafEventPersisterTest {
 
     private WafEvent event(long id) {
         return new WafEvent(id, "WAF-" + id, "ALLOWED", Instant.now(),
-                "127.0.0.1", "test", false, null, null);
+                "127.0.0.1", "test", false, null, null, null);
     }
 }

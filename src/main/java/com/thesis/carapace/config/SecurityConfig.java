@@ -32,11 +32,11 @@ public class SecurityConfig {
             .requestCache(cache -> cache.disable())
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                    .requestMatchers("/ws", "/api/preview", "/api/log4shell").permitAll()
+                    .requestMatchers("/ws", "/api/preview", "/api/log4shell", "/decoy/**").permitAll()
                     // This teaching endpoint performs its own signed-JWT check.
                     .requestMatchers("/api/admin/config").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/info").permitAll()
-                    .requestMatchers("/api/admin/**", "/api/waf/**", "/actuator/**").hasRole("ADMIN")
+                    .requestMatchers("/api/admin/**", "/api/waf/**", "/api/honeypot/**", "/actuator/**").hasRole("ADMIN")
                     .anyRequest().permitAll())
             .exceptionHandling(exceptions -> exceptions
                     .authenticationEntryPoint(authenticationEntryPoint()))
